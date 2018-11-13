@@ -1,21 +1,240 @@
-# Build ASP.NET Core project using Azure Pipelines
-# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core?view=vsts
+resources:
 
-pool:
-  vmImage: 'Ubuntu 16.04'
-  
-variables:
-  buildConfiguration: 'Release'
+- repo: self
+
+queue:
+
+  name: Default
+
+  demands: 
+
+  - msbuild
+
+  - visualstudio
+
+
+
+#Your build pipeline references an undefined variable named ‘Parameters.solution’. Create or edit the build pipeline for this YAML file, define the variable on the Variables tab. See https://go.microsoft.com/fwlink/?linkid=865972
+
+#Your build pipeline references the ‘KlantName’ variable, which you’ve selected to be settable at queue time. Create or edit the build pipeline for this YAML file, define the variable on the Variables tab, and then select the option to make it settable at queue time. See https://go.microsoft.com/fwlink/?linkid=865971
+
+#Your build pipeline references the ‘KlantName’ variable, which you’ve selected to be settable at queue time. Create or edit the build pipeline for this YAML file, define the variable on the Variables tab, and then select the option to make it settable at queue time. See https://go.microsoft.com/fwlink/?linkid=865971
+
+#Your build pipeline references the ‘KlantName’ variable, which you’ve selected to be settable at queue time. Create or edit the build pipeline for this YAML file, define the variable on the Variables tab, and then select the option to make it settable at queue time. See https://go.microsoft.com/fwlink/?linkid=865971
+
+#Your build pipeline references the ‘BuildPlatform’ variable, which you’ve selected to be settable at queue time. Create or edit the build pipeline for this YAML file, define the variable on the Variables tab, and then select the option to make it settable at queue time. See https://go.microsoft.com/fwlink/?linkid=865971
+
+#Your build pipeline references the ‘BuildConfiguration’ variable, which you’ve selected to be settable at queue time. Create or edit the build pipeline for this YAML file, define the variable on the Variables tab, and then select the option to make it settable at queue time. See https://go.microsoft.com/fwlink/?linkid=865971
+
+#Your build pipeline references the ‘KlantName’ variable, which you’ve selected to be settable at queue time. Create or edit the build pipeline for this YAML file, define the variable on the Variables tab, and then select the option to make it settable at queue time. See https://go.microsoft.com/fwlink/?linkid=865971
+
+#Your build pipeline references the ‘BuildPlatform’ variable, which you’ve selected to be settable at queue time. Create or edit the build pipeline for this YAML file, define the variable on the Variables tab, and then select the option to make it settable at queue time. See https://go.microsoft.com/fwlink/?linkid=865971
+
+#Your build pipeline references the ‘BuildConfiguration’ variable, which you’ve selected to be settable at queue time. Create or edit the build pipeline for this YAML file, define the variable on the Variables tab, and then select the option to make it settable at queue time. See https://go.microsoft.com/fwlink/?linkid=865971
+
+#Your build pipeline references an undefined variable named ‘Parameters.ArtifactName’. Create or edit the build pipeline for this YAML file, define the variable on the Variables tab. See https://go.microsoft.com/fwlink/?linkid=865972
 
 steps:
-- script: |
-    dotnet build --configuration $(buildConfiguration)
-    dotnet test dotnetcore-tests --configuration $(buildConfiguration) --logger trx
-    dotnet publish --configuration $(buildConfiguration) --output $BUILD_ARTIFACTSTAGINGDIRECTORY
 
-- task: PublishTestResults@2
+- task: NuGetToolInstaller@0
+
+  displayName: 'Use NuGet 4.8.1'
+
   inputs:
-    testRunner: VSTest
-    testResultsFiles: '**/*.trx'
+
+    versionSpec: 4.8.1
+
+
+
+
+
+- task: NuGetCommand@2
+
+  displayName: 'NuGet restore'
+
+  inputs:
+
+    restoreSolution: '$(Parameters.solution)'
+
+
+
+    feedsToUse: config
+
+
+
+    nugetConfigPath: .nuget/Nuget.Config
+
+
+
+
+
+- task: NuGetCommand@2
+
+  displayName: 'NuGet update'
+
+  inputs:
+
+    command: custom
+
+
+
+    arguments: 'update $(System.DefaultWorkingDirectory)\$(KlantName).Intranet.sln -Safe -ConfigFile "$(System.DefaultWorkingDirectory)\.nuget\Nuget.Config" -RepositoryPath $(System.DefaultWorkingDirectory)\packages -id Embrace.Deploy'
+
+
+
+
+
+- task: NuGetCommand@2
+
+  displayName: 'NuGet update ClientDependency'
+
+  inputs:
+
+    command: custom
+
+
+
+    arguments: 'update $(System.DefaultWorkingDirectory)\$(KlantName).Intranet.sln -Safe  -ConfigFile "$(System.DefaultWorkingDirectory)\.nuget\Nuget.Config" -RepositoryPath $(System.DefaultWorkingDirectory)\packages -id ClientDependency -version 1.9.7 -Source https://www.nuget.org/api/v2/'
+
+
+
+
+
+- task: VSBuild@1
+
+  displayName: 'Build Embrace'
+
+  inputs:
+
+    solution: '**/$(KlantName).Intranet.Embrace.csproj'
+
+
+
+    msbuildArgs: '-t:Clean;Rebuild;ResolveReferences;_WPPCopyWebApplication /p:OutputPath="Embrace\bin\\" /p:PipelineDependsOnBuild=false /p:UseWPP_CopyWebApplication=true /p:WebProjectOutputDir="$(build.artifactstagingdirectory)\Embrace\\" /m:4 /p:DebugSymbols=false'
+
+
+
+    platform: '$(BuildPlatform)'
+
+
+
+    configuration: '$(BuildConfiguration)'
+
+
+
+
+
+- task: VSBuild@1
+
+  displayName: 'Build Umbraco'
+
+  inputs:
+
+    solution: '**/$(KlantName).Intranet.Umbraco.csproj'
+
+
+
+    msbuildArgs: '-t:Clean;Rebuild;ResolveReferences;_WPPCopyWebApplication /p:DeployOnBuild=false /p:ExcludeFoldersFromDeployment="App_Data\Logs;App_Data\preview" /p:OutputPath="Umbraco\bin" /p:PipelineDependsOnBuild=false /p:SkipExtraFilesOnServer=true /p:UseWPP_CopyWebApplication=true /p:WebProjectOutputDir="$(build.artifactstagingdirectory)\Umbraco" /m:4 /p:DebugSymbols=false'
+
+
+
+    platform: '$(BuildPlatform)'
+
+
+
+    configuration: '$(BuildConfiguration)'
+
+
+
+
+
+- task: NuGetCommand@2
+
+  displayName: 'NuGet pack Embrace'
+
+  inputs:
+
+    command: pack
+
+
+
+    packagesToPack: '$(Build.ArtifactStagingDirectory)/Embrace/*.Intranet.Embrace.nuspec'
+
+
+
+    packDestination: '$(Build.ArtifactStagingDirectory)\nupkg'
+
+
+
+    versioningScheme: byEnvVar
+
+
+
+    versionEnvVar: Embrace.Version
+
+
+
+    buildProperties: '-NoPackageAnalysis'
+
+
+
+    verbosityPack: Quiet
+
+
+
+
+
+- task: NuGetCommand@2
+
+  displayName: 'NuGet pack Umbraco'
+
+  inputs:
+
+    command: pack
+
+
+
+    packagesToPack: '$(Build.ArtifactStagingDirectory)/Umbraco/*.Intranet.Umbraco.nuspec'
+
+
+
+    packDestination: '$(Build.ArtifactStagingDirectory)\nupkg'
+
+
+
+    versioningScheme: byEnvVar
+
+
+
+    versionEnvVar: Umbraco.Version
+
+
+
+    buildProperties: '-NoPackageAnalysis'
+
+
+
+    verbosityPack: Quiet
+
+
+
+
 
 - task: PublishBuildArtifacts@1
+
+  displayName: 'Publish Artifact'
+
+  inputs:
+
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)/nupkg'
+
+
+
+    ArtifactName: '$(Parameters.ArtifactName)'
+
+
+
+
+
+
+
